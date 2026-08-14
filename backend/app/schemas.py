@@ -89,12 +89,6 @@ class PipelineScore(BaseModel):
     details: dict[str, Any] = {}
 
 
-class FrameResult(BaseModel):
-    frame_index: int
-    timestamp_sec: float
-    face_detected: bool
-    scores: dict[str, float] = {}
-
 
 # ── Analysis ───────────────────────────────────────────────────────────
 
@@ -105,12 +99,10 @@ class AnalysisResponse(BaseModel):
     filename: str
     media_type: MediaType
     sha256: str
-    overall_score: float | None = None
+    overall_score: float | None = Field(None, ge=0, le=100)
     verdict: Verdict | None = None
     pipeline_scores: list[PipelineScore] = []
-    frame_results: list[FrameResult] = []
     heatmap_urls: list[str] = []
-    ela_url: str | None = None
     exif_data: dict[str, Any] | None = None
     report_url: str | None = None
     created_at: datetime

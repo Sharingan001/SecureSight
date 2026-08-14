@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
     User, Case, CaseEvidence, CaseNote, CaseAssignment,
-    Analysis, PipelineResult, CustodyLog, Heatmap, ForensicArtifact, AuditLog,
+    Analysis, PipelineResult, CustodyLog, Heatmap, AuditLog,
 )
 
 
@@ -84,14 +84,9 @@ async def get_user_analyses(db: AsyncSession, user_id: int, page: int = 1, per_p
     return total, items
 
 
-# ── Pipeline Results (bulk insert) ─────────────────────────────────────
 
-async def create_pipeline_results(db: AsyncSession, analysis_id: int, results: list[dict]) -> None:
-    """Bulk insert pipeline results for speed."""
-    objects = [PipelineResult(analysis_id=analysis_id, **r) for r in results]
-    db.add_all(objects)
-    await db.flush()
 
+# ── Pipeline Results ─────────────────────────────────────────────
 
 async def get_pipeline_results(db: AsyncSession, analysis_id: int) -> list[PipelineResult]:
     result = await db.execute(
@@ -168,13 +163,6 @@ async def get_case_notes(db: AsyncSession, case_id: int) -> list[CaseNote]:
 
 
 # ── Heatmaps ───────────────────────────────────────────────────────────
-
-async def create_heatmap(db: AsyncSession, analysis_id: int, heatmap_type: str, storage_path: str) -> Heatmap:
-    hm = Heatmap(analysis_id=analysis_id, heatmap_type=heatmap_type, storage_path=storage_path)
-    db.add(hm)
-    await db.flush()
-    return hm
-
 
 async def get_heatmaps(db: AsyncSession, analysis_id: int) -> list[Heatmap]:
     result = await db.execute(select(Heatmap).where(Heatmap.analysis_id == analysis_id))

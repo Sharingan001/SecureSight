@@ -129,6 +129,5 @@ if not settings.DEBUG and settings.JWT_SECRET in _PLACEHOLDER_SECRETS:
         "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
     )
 
-# Ensure directories exist
-settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-settings.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+# Note: UPLOAD_DIR and OUTPUT_DIR are created by lifespan() in main.py on startup.
+# Do not create them here — side effects at import time break unit tests.

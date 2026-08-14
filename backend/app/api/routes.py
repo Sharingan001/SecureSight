@@ -22,7 +22,7 @@ from app.config import settings
 from app.database import get_db
 from app.db import crud
 from app.db.models import User
-from app.deps import get_current_active_user, require_min_role
+from app.deps import require_min_role
 from app.forensic.chain_of_custody import generate_evidence_id
 from app.schemas import (
     AnalysisResponse, AnalysisSummary, HealthResponse, HistoryResponse,

@@ -143,9 +143,6 @@ class Analysis(Base):
     heatmaps: Mapped[list["Heatmap"]] = relationship(
         back_populates="analysis", cascade="all, delete-orphan"
     )
-    forensic_artifacts: Mapped[list["ForensicArtifact"]] = relationship(
-        back_populates="analysis", cascade="all, delete-orphan"
-    )
     case_evidence: Mapped[list["CaseEvidence"]] = relationship(
         back_populates="analysis", cascade="all, delete-orphan"
     )
@@ -195,18 +192,6 @@ class Heatmap(Base):
     frame_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     analysis: Mapped["Analysis"] = relationship(back_populates="heatmaps")
-
-
-class ForensicArtifact(Base):
-    __tablename__ = "forensic_artifacts"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    analysis_id: Mapped[int] = mapped_column(Integer, ForeignKey("analyses.id"))
-    artifact_type: Mapped[str] = mapped_column(String(30))
-    storage_path: Mapped[str] = mapped_column(String(500))
-    meta_info: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-
-    analysis: Mapped["Analysis"] = relationship(back_populates="forensic_artifacts")
 
 
 # ── Audit Log ──────────────────────────────────────────────────────────

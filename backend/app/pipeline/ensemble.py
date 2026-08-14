@@ -154,13 +154,11 @@ def run_all_pipelines(preprocess: PreprocessResult, file_path: str) -> dict[str,
     if has_faces:
         fn = _safe_import("app.models.efficientnet")
         if fn:
-            # Use predict_batch for all face crops; average score across faces
-            fn_batch = _safe_import("app.models.efficientnet")
-            tasks.append(("efficientnet", fn, primary_face))  # single-face API kept
-            # Override with batch function for multi-face
             if len(all_face_images) > 1:
                 from app.models import efficientnet as _eff_mod
-                tasks[-1] = ("efficientnet", _batch_face_predict(_eff_mod), all_face_images)
+                tasks.append(("efficientnet", _batch_face_predict(_eff_mod), all_face_images))
+            else:
+                tasks.append(("efficientnet", fn, primary_face))
 
         # Only run XceptionNet if it has TRAINED weights — random init is useless
         if settings.XCEPTION_WEIGHTS is not None:
