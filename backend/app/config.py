@@ -116,18 +116,61 @@ class Settings(BaseSettings):
 settings = Settings()
 settings._auto_discover_weights()
 
-# ── Startup validation ─────────────────────────────────────────────────
-_PLACEHOLDER_SECRETS = {
+# ── Startup validation — JWT_SECRET strength ───────────────────────────
+# This check runs at import time (production only, DEBUG=False).
+# A weak JWT secret means every token in the system is forgeable.
+# Fail loudly at startup rather than silently in production.
+
+_KNOWN_WEAK_SECRETS = {
     "CHANGE-ME-in-production-use-openssl-rand-hex-32",
     "CHANGE-ME-use-openssl-rand-hex-32-in-production",
+    "secret", "password", "changeme", "dev", "test", "admin",
+    "your-secret-key", "mysecret", "jwt_secret", "supersecret",
+    "1234567890", "abcdefghijklmnopqrstuvwxyz",
 }
 
-if not settings.DEBUG and settings.JWT_SECRET in _PLACEHOLDER_SECRETS:
-    raise RuntimeError(
-        "FATAL: JWT_SECRET is still the placeholder value. "
-        "Set a real secret via environment variable or .env file before running in production. "
-        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-    )
+
+def _jwt_secret_entropy(secret: str) -> float:
+    """Shannon entropy in bits per character.
+    A random 32-byte hex string has ~3.9 bits/char.
+    A password like 'password123' has ~2.8 bits/char.
+    Threshold: 3.5 bits/char is a reasonable minimum.
+    """
+    import math
+    from collections import Counter
+    counts = Counter(secret)
+    total = len(secret)
+    return -sum((c / total) * math.log2(c / total) for c in counts.values())
+
+
+if not settings.DEBUG:
+    _secret = settings.JWT_SECRET
+    _errors: list[str] = []
+
+    if _secret.lower() in _KNOWN_WEAK_SECRETS:
+        _errors.append("JWT_SECRET is a known-weak or placeholder value")
+
+    if len(_secret) < 32:
+        _errors.append(
+            f"JWT_SECRET is too short ({len(_secret)} chars). "
+            "Minimum 32 characters required for HS256 security."
+        )
+
+    if len(_secret) >= 8:  # Only check entropy if long enough to be meaningful
+        _entropy = _jwt_secret_entropy(_secret)
+        if _entropy < 3.5:
+            _errors.append(
+                f"JWT_SECRET has low entropy ({_entropy:.2f} bits/char, minimum 3.5). "
+                "Use a random value: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+
+    if _errors:
+        raise RuntimeError(
+            "FATAL: Insecure JWT_SECRET detected at startup — refusing to run.\n"
+            + "\n".join(f"  • {e}" for e in _errors) + "\n"
+            "Generate a secure secret with: "
+            "python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
 
 # Note: UPLOAD_DIR and OUTPUT_DIR are created by lifespan() in main.py on startup.
 # Do not create them here — side effects at import time break unit tests.
