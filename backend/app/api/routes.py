@@ -22,7 +22,7 @@ from app.config import settings
 from app.database import get_db
 from app.db import crud
 from app.db.models import User
-from app.deps import require_min_role
+from app.deps import require_min_role, limiter
 from app.forensic.chain_of_custody import generate_evidence_id
 from app.schemas import (
     AnalysisResponse, AnalysisSummary, HealthResponse, HistoryResponse,
@@ -168,6 +168,7 @@ def _build_analysis_response(
 
 # ── Analyze (AUTHENTICATED — examiner+) ───────────────────────────────
 
+@limiter.limit("20/hour")  # Anti GPU-flood: 20 uploads/hr per IP
 @router.post("/analyze", response_model=AnalysisResponse)
 async def analyze(
     request: Request,
@@ -533,8 +534,10 @@ async def get_original_file(
     )
 
 
+@limiter.limit("60/minute")  # Prevent scraping at high speed
 @router.get("/history", response_model=HistoryResponse)
-async def history(
+async def get_history(
+    request: Request,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -603,8 +606,10 @@ async def delete_analysis_endpoint(
 
 # ── Admin Stats (AUTHENTICATED — admin only) ───────────────────────────
 
+@limiter.limit("30/minute")  # Heavy aggregation — protect DB
 @router.get("/admin/stats")
 async def get_admin_stats(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_min_role("admin")),
 ):
