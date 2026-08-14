@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 <!-- Animated header banner -->
 <img src="./frontend/assets/banner.svg" width="100%" alt="SecureSight Banner"/>
@@ -29,7 +29,7 @@
 
 <br/>
 
-[🚀 Quick Start](#-quick-start) · [🔬 Pipelines](#-detection-pipelines) · [🤖 AI Models](#-ai-models) · [📡 API](#-api-reference) · [🐳 Docker](#-docker-deployment) · [📋 Live Results](#-live-test-results)
+[🚀 Quick Start](#-quick-start) · [✨ Key Features & Optimizations](#-key-features--optimizations) · [🔬 Pipelines](#-detection-pipelines) · [🤖 AI Models](#-ai-models) · [📡 API](#-api-reference) · [🐳 Docker](#-docker-deployment) 
 
 </div>
 
@@ -49,42 +49,35 @@ Upload Image/Video  →  11 Parallel Pipelines  →  Ensemble Verdict  →  Cour
 
 ---
 
-## 📋 Live Test Results
+## ✨ Key Features & Optimizations
 
-```
-═══════════════════════════════════════════════════════════════
-  SecureSight — Verified Production Run  (2026-08-14)
-═══════════════════════════════════════════════════════════════
+We have meticulously engineered SecureSight for maximum performance, security, and reliability. Here is a breakdown of our latest architectural achievements:
 
-  Hardware : NVIDIA GeForce RTX 4050 Laptop GPU (CUDA 12.2.2)
+<details>
+<summary><b>🛡️ Security & Integrity (Click to expand)</b></summary>
 
-  ── Analysis Result ──────────────────────────────────────────
-  Evidence ID  : EV-20260814-16FA
-  File         : image.jpg  (82.6 KB)
-  Status       : ✅ COMPLETED in 19.63 seconds
-  Verdict      : ⛔ CONFIRMED_FAKE
-  Score        : 86.79 / 100
+- **Magic Byte Validation:** Files are verified by their binary signatures, preventing malicious uploads masking as images/videos.
+- **EXIF Input Sanitization:** Robust protection against XSS and NoSQL injection by sanitizing all EXIF data extracted from attacker-controlled inputs.
+- **JWT Entropy Validation:** Fails fast on weak production secrets, ensuring enterprise-grade cryptographic security.
+- **Strict Rate Limiting:** Implemented `slowapi` to prevent GPU queue flooding, scraping, and brute-force attacks across all key endpoints (`/analyze`, `/history`, `/auth`).
+</details>
 
-  ── Pipeline Status ──────────────────────────────────────────
-  EfficientNet-B4  ✅  AUC=0.9953 (epoch 10, trained weights)
-  AI Ensemble      ✅  3 HuggingFace models active
-  ELA / Copy-Move  ✅  Overlays generated
-  JPEG Ghost       ✅
-  EXIF Forensics   ✅
-  Biometric / FFT  ✅
-  Total pipelines  : 11 of 14 executed
+<details>
+<summary><b>⚡ Performance & Scalability (Click to expand)</b></summary>
 
-  ── E2E Frontend Validation (Playwright 1.62) ─────────────────
-  Login (JWT)      : ✅ HTTP 200
-  Upload + queue   : ✅ Celery task dispatched
-  Polling loop     : ✅ Result in ~20s
-  Results view     : ✅ Verdict gauge + pipeline bars
-  Forensic viewer  : ✅ Original / GradCAM / ELA / Copy-Move
-  History table    : ✅ Record persisted
-  JS console errs  : ✅ ZERO
+- **SHA-256 Deduplication (Zero-Shot Cache):** Exact file matches instantly return cached GPU analysis results, bypassing redundant pipeline execution and saving massive compute.
+- **Database Optimization:** 18+ targeted indexes drastically speed up queries on high-traffic tables.
+- **Smart Celery Retries:** Differentiates between transient infrastructure errors and invalid files, preventing infinite retry loops on corrupt uploads.
+- **Automated Disk Cleanup:** A background `Celery Beat` task scrubs stale local files hourly, preventing disk exhaustion in high-volume deployments.
+</details>
 
-═══════════════════════════════════════════════════════════════
-```
+<details>
+<summary><b>🧠 Advanced AI Architecture (Click to expand)</b></summary>
+
+- **Real-Time Progress WebSockets:** Users see granular live progress (preprocessing → pipelines → visuals → report) fetched directly from Redis and Celery states.
+- **XceptionNet Architecture Fixes:** Restored the original 8-block middle flow and added critical `Dropout(0.2)` regularization to prevent overfitting on complex deepfakes.
+- **Admin Stats Dashboard:** Provides real-time aggregations (total analyses, verdict distribution, average processing time, and 7-day trends) using highly optimized queries.
+</details>
 
 ---
 
@@ -120,7 +113,7 @@ Upload Image/Video  →  11 Parallel Pipelines  →  Ensemble Verdict  →  Cour
 │  │           GradCAM + ELA overlay + ISO 27037 PDF report           │    │
 │  └──────────────────────────────────────────────────────────────────┘    │
 │                                                                           │
-│  PostgreSQL (12 tables) · Redis (queue) · MinIO S3 · NVIDIA CUDA        │
+│  PostgreSQL (18+ indexes) · Redis (queue) · MinIO S3 · NVIDIA CUDA      │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -128,13 +121,13 @@ Upload Image/Video  →  11 Parallel Pipelines  →  Ensemble Verdict  →  Cour
 
 ## 🔬 Detection Pipelines
 
-### Tier 1 — Deep Learning (Primary) — Combined weight: 0.60
+### Tier 1 — Deep Learning (Primary) — Combined weight: 0.62
 
 | # | Pipeline | Model | AUC | Weight |
 |---|----------|-------|-----|--------|
 | 1 | **EfficientNet-B4** | Custom CNN fine-tuned on 42,930 images | ✅ 99.53% | 0.25 |
 | 2 | **AI Ensemble** | ViT + CLIP + SigLIP/DINOv2 (3× HuggingFace) | Smart fusion | 0.25 |
-| 3 | **XceptionNet** | Depthwise Separable CNN | Random init | 0.10 |
+| 3 | **XceptionNet** | Depthwise Separable CNN (8-Block Middle Flow) | Random init | 0.12 |
 
 ### Tier 2 — Image Forensics — Combined weight: 0.14
 
@@ -145,15 +138,15 @@ Upload Image/Video  →  11 Parallel Pipelines  →  Ensemble Verdict  →  Cour
 | 6 | **JPEG Ghost** | Compression sweep Q50-100, block-level splicing detect | 0.03 |
 | 7 | **EXIF Metadata** | Software tags (Photoshop/FaceApp), thumbnail mismatch | 0.03 |
 
-### Tier 3 — Physical Consistency — Combined weight: 0.07
+### Tier 3 — Physical Consistency — Combined weight: 0.03
 
 | # | Pipeline | Technique | Weight |
 |---|----------|-----------|--------|
 | 8 | **Eye Reflection** | Corneal specular NCC comparison L/R eyes | 0.03 |
-| 9 | **Shadow/Lighting** | Sobel gradient multi-quadrant light direction | 0.02 |
-| 10 | **Noise Pattern** | Sensor noise residual via NlMeansDenoising | 0.02 |
+| 9 | **Shadow/Lighting** | Sobel gradient multi-quadrant light direction | 0.00 |
+| 10 | **Noise Pattern** | Sensor noise residual via NlMeansDenoising | 0.00 |
 
-### Tier 4 — Advanced Analysis — Combined weight: 0.07
+### Tier 4 — Advanced Analysis — Combined weight: 0.15
 
 | # | Pipeline | Technique | Weight |
 |---|----------|-----------|--------|
@@ -178,10 +171,19 @@ Architecture: EfficientNet-B4 (ImageNet pretrained)
 
 Training dataset : 42,930 images (17K real + 17.9K AI/deepfake + 8K Celeb-DF)
 Optimizer        : AdamW (lr=5e-5, weight_decay=1e-4)
-Scheduler        : CosineAnnealingWarmRestarts (T0=2, Tmult=2)
 Augmentation     : JPEGCompress(q=10-40) + DownscaleUpscale + 7 geometric transforms
 TTA              : 5 variants (Original 30% + H-Flip 20% + Zoom×2 + Combined)
 Best AUC         : 99.53%   ← loaded from weights/efficientnet_b4_deepfake.pth ✅
+```
+
+### XceptionNet (Optimized)
+
+```python
+Architecture: XceptionNet
+  ├── 8-Block Middle Flow (Restored from 4-block for complex forgery detection)
+  └── Custom classifier head:
+      ├── Dropout(0.2)  # Critical regularization added to prevent overfitting
+      └── Linear(2048 → 2)
 ```
 
 ### AI Ensemble Smart Fusion
@@ -219,40 +221,17 @@ final = 0.60 × max_face_score + 0.40 × avg_all_faces_score
 
 **Base URL:** `http://localhost:8000/api/v1`
 
-```bash
-# Login
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@securesight.local","password":"Admin@1234"}'
-
-# Analyze media (async — poll for result)
-curl -X POST http://localhost:8000/api/v1/analyze \
-  -H "Authorization: Bearer <token>" \
-  -F "file=@evidence.jpg"
-# → {"analysis_id":"3907...", "status":"processing"}
-
-# Poll until completed
-curl http://localhost:8000/api/v1/results/3907446ce93d414e856892826016a3fa \
-  -H "Authorization: Bearer <token>"
-# → {"status":"completed","verdict":"CONFIRMED_FAKE","overall_score":86.79,...}
-
-# Download PDF report
-curl http://localhost:8000/api/v1/results/3907.../report \
-  -H "Authorization: Bearer <token>" -o report.pdf
-```
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/auth/login` | Get JWT token |
-| `POST` | `/auth/register` | Create account |
-| `GET` | `/health` | Health + GPU status |
-| `POST` | `/analyze` | Upload + analyze media |
-| `GET` | `/results/{id}` | Get analysis result |
-| `GET` | `/results/{id}/report` | Download PDF report |
-| `GET` | `/results/{id}/heatmap?type=gradcam_efficientnet` | GradCAM image |
-| `GET` | `/results/{id}/original` | Original uploaded file |
-| `GET` | `/results/{id}/custody` | Chain of custody log |
-| `GET` | `/history?page=1&per_page=20` | Analysis history |
+| Method | Endpoint | Description | Limit |
+|--------|----------|-------------|-------|
+| `POST` | `/auth/login` | Get JWT token | `10/min` |
+| `POST` | `/auth/register` | Create account | `5/min` |
+| `GET` | `/health` | Health + GPU status | |
+| `POST` | `/analyze` | Upload + analyze media | `20/hour` |
+| `GET` | `/results/{id}/progress` | Real-time analysis progress | |
+| `GET` | `/results/{id}` | Get analysis result | |
+| `GET` | `/results/{id}/report` | Download PDF report | |
+| `GET` | `/admin/stats` | Admin dashboard data | `30/min` |
+| `GET` | `/history` | Analysis history | `60/min` |
 
 ---
 
@@ -260,7 +239,7 @@ curl http://localhost:8000/api/v1/results/3907.../report \
 
 ```bash
 # 1. Clone and configure
-git clone https://github.com/your-org/SecureSight.git && cd SecureSight
+git clone https://github.com/Sharingan001/SecureSight.git && cd SecureSight
 cp .env.example .env   # Edit JWT_SECRET at minimum
 
 # 2. Build and launch all 5 services
@@ -268,12 +247,11 @@ docker compose up -d --build
 
 # 3. Verify (GPU should be detected)
 curl http://localhost:8000/api/v1/health
-# {"gpu_available":true,"gpu_name":"NVIDIA GeForce RTX 4050 Laptop GPU","device":"cuda"}
 
 # 4. Access
 # Dashboard : http://localhost:8000
 # API docs  : http://localhost:8000/docs
-# MinIO UI  : http://localhost:9001  (minioadmin / minioadmin123)
+# MinIO UI  : http://localhost:9001
 ```
 
 | Container | Port | Purpose |
@@ -292,45 +270,21 @@ curl http://localhost:8000/api/v1/health
 DEVICE=cuda                 # auto | cuda | cpu
 USE_FP16=true               # FP16 inference (2× GPU speed)
 USE_TTA=true                # Test-Time Augmentation
-JWT_SECRET=<32-hex-bytes>   # openssl rand -hex 32
+JWT_SECRET=<32-hex-bytes>   # Enforced Minimum Entropy
 MAX_UPLOAD_MB=500
 THRESH_LIKELY_FAKE=85.0     # Above = CONFIRMED_FAKE
 ```
 
 ---
 
-## 🏗️ Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| API | FastAPI 0.115 + Uvicorn |
-| Deep Learning | PyTorch 2.x + TorchVision |
-| HuggingFace | transformers — 3 detector models |
-| Computer Vision | OpenCV 4.10 + scikit-image + Pillow |
-| Face Detection | MTCNN (facenet-pytorch) + Haar Cascade |
-| Face Analysis | MediaPipe Face Mesh (468 landmarks) |
-| Audio | librosa + soundfile |
-| Database | PostgreSQL 16 + SQLAlchemy 2.0 + Alembic |
-| Task Queue | Celery + Redis (prefork) |
-| Object Storage | MinIO S3-compatible |
-| Reports | ReportLab ISO 27037 PDF |
-| Auth | python-jose JWT + bcrypt + slowapi |
-| Deployment | Docker Compose + NVIDIA Container Toolkit |
-| Frontend | Vanilla HTML/CSS/JS + Three.js |
-| E2E Testing | Playwright 1.62 (Chromium) |
-
----
-
-## 🔐 Security
+## 🔐 Security & Roles
 
 | Role | Permissions |
 |------|------------|
-| `admin` | Full access — user management, all analyses |
+| `admin` | Full access — user management, all analyses, stats dashboard |
 | `examiner` | Upload + analyze + manage own cases |
 | `reviewer` | Read-only all analyses |
 | `viewer` | Read-only own analyses |
-
-**Security measures:** bcrypt (factor 12) · JWT revocation · API key hashing (SHA-256) · Rate limiting (10/min login) · File path sanitization · MIME validation · Streaming upload · Full audit logging
 
 ---
 
@@ -338,10 +292,8 @@ THRESH_LIKELY_FAKE=85.0     # Above = CONFIRMED_FAKE
 
 MIT License — see [LICENSE](LICENSE) for details.
 
----
-
 <div align="center">
-
+<br/>
 <img src="./frontend/assets/footer.svg" width="100%" alt="SecureSight Footer"/>
 
 <p>Built for <strong>forensic integrity</strong> · Designed for <strong>cyber labs</strong> · Deployed with <strong>CUDA precision</strong></p>
@@ -350,4 +302,3 @@ MIT License — see [LICENSE](LICENSE) for details.
 <img src="https://img.shields.io/badge/Powered%20by-NVIDIA%20GPU-76b900?style=for-the-badge&logo=nvidia"/>
 
 </div>
-
