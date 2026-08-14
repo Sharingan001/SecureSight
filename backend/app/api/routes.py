@@ -599,3 +599,110 @@ async def delete_analysis_endpoint(
     await crud.delete_analysis(db, analysis)
 
     return {"status": "ok", "detail": "Analysis deleted and storage cleanup queued"}
+
+
+# ── Admin Stats (AUTHENTICATED — admin only) ───────────────────────────
+
+@router.get("/admin/stats")
+async def get_admin_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_min_role("admin")),
+):
+    """System-wide statistics for the admin dashboard.
+
+    Returns:
+      - analyses: total count and per-status breakdown
+      - verdicts: count per verdict label
+      - pipelines: average score per pipeline across all completed analyses
+      - top_users: top 5 users by analysis count
+      - daily_trend: analyses submitted per day for the last 7 days
+    """
+    from sqlalchemy import func, cast, Date as SADate, select
+    from app.db.models import Analysis, PipelineResult, User as UserModel
+
+    # ── Total + status breakdown ──────────────────────────────────────
+    status_rows = await db.execute(
+        select(Analysis.status, func.count(Analysis.id).label("cnt"))
+        .group_by(Analysis.status)
+    )
+    status_counts = {r.status: r.cnt for r in status_rows}
+    total = sum(status_counts.values())
+
+    # ── Verdict distribution ──────────────────────────────────────────
+    verdict_rows = await db.execute(
+        select(Analysis.verdict, func.count(Analysis.id).label("cnt"))
+        .where(Analysis.verdict.isnot(None))
+        .group_by(Analysis.verdict)
+    )
+    verdict_counts = {r.verdict: r.cnt for r in verdict_rows}
+
+    # ── Per-pipeline average score ────────────────────────────────────
+    pipeline_rows = await db.execute(
+        select(
+            PipelineResult.pipeline,
+            func.avg(PipelineResult.score).label("avg_score"),
+            func.count(PipelineResult.id).label("runs"),
+        )
+        .group_by(PipelineResult.pipeline)
+        .order_by(PipelineResult.pipeline)
+    )
+    pipeline_stats = [
+        {"pipeline": r.pipeline, "avg_score": round(r.avg_score, 2), "runs": r.runs}
+        for r in pipeline_rows
+    ]
+
+    # ── Top 5 users by analysis count ────────────────────────────────
+    top_user_rows = await db.execute(
+        select(
+            UserModel.email,
+            UserModel.role,
+            func.count(Analysis.id).label("cnt"),
+        )
+        .join(Analysis, Analysis.user_id == UserModel.id)
+        .group_by(UserModel.id, UserModel.email, UserModel.role)
+        .order_by(func.count(Analysis.id).desc())
+        .limit(5)
+    )
+    top_users = [
+        {"email": r.email, "role": r.role, "count": r.cnt}
+        for r in top_user_rows
+    ]
+
+    # ── 7-day daily submission trend ─────────────────────────────────
+    from datetime import datetime, timezone, timedelta
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    trend_rows = await db.execute(
+        select(
+            cast(Analysis.created_at, SADate).label("day"),
+            func.count(Analysis.id).label("cnt"),
+        )
+        .where(Analysis.created_at >= seven_days_ago)
+        .group_by(cast(Analysis.created_at, SADate))
+        .order_by(cast(Analysis.created_at, SADate))
+    )
+    daily_trend = [{"day": str(r.day), "count": r.cnt} for r in trend_rows]
+
+    # ── Average processing time (completed analyses only) ─────────────
+    avg_time_row = await db.execute(
+        select(
+            func.avg(
+                func.extract("epoch", Analysis.completed_at) -
+                func.extract("epoch", Analysis.created_at)
+            ).label("avg_seconds")
+        )
+        .where(Analysis.status == "completed")
+        .where(Analysis.completed_at.isnot(None))
+    )
+    avg_seconds = avg_time_row.scalar()
+
+    return {
+        "analyses": {
+            "total": total,
+            "by_status": status_counts,
+        },
+        "verdicts": verdict_counts,
+        "pipelines": pipeline_stats,
+        "top_users": top_users,
+        "daily_trend": daily_trend,
+        "avg_processing_seconds": round(avg_seconds, 1) if avg_seconds else None,
+    }
