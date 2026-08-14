@@ -124,6 +124,48 @@ async def health():
     )
 
 
+# ── Response builder (shared by analyze + get_results) ────────────────
+
+def _build_analysis_response(
+    analysis,
+    pipe_results: list,
+    heatmaps: list,
+    cached: bool = False,
+) -> "AnalysisResponse":
+    """Build a consistent AnalysisResponse from DB objects.
+
+    Centralising this prevents the dedup path and the GET /results path
+    from returning subtly different shapes.
+    """
+    return AnalysisResponse(
+        analysis_id=analysis.uid,
+        evidence_id=analysis.evidence_id,
+        status=AnalysisStatus(analysis.status),
+        filename=analysis.filename,
+        media_type=MediaType(analysis.media_type),
+        sha256=analysis.sha256,
+        overall_score=analysis.overall_score,
+        verdict=analysis.verdict,
+        pipeline_scores=[
+            PipelineScore(
+                pipeline=pr.pipeline, tier=pr.tier, score=pr.score,
+                confidence=pr.confidence, execution_ms=pr.execution_ms,
+                details=pr.details or {},
+            )
+            for pr in pipe_results
+        ],
+        heatmap_urls=[
+            f"/api/v1/results/{analysis.uid}/heatmap?type={h.heatmap_type}"
+            for h in heatmaps
+        ],
+        exif_data=analysis.exif_data,
+        report_url=f"/api/v1/results/{analysis.uid}/report" if analysis.report_path else None,
+        created_at=analysis.created_at,
+        completed_at=analysis.completed_at,
+        cached=cached,
+    )
+
+
 # ── Analyze (AUTHENTICATED — examiner+) ───────────────────────────────
 
 @router.post("/analyze", response_model=AnalysisResponse)
@@ -193,6 +235,48 @@ async def analyze(
 
     sha256 = await asyncio.to_thread(compute_file_hash, file_path, "sha256")
     sha512 = await asyncio.to_thread(compute_file_hash, file_path, "sha512")
+
+    # ── Duplicate detection (SHA-256 dedup) ────────────────────────────
+    # Check if this exact file (same SHA-256) was already analyzed.
+    # Skip re-processing to avoid wasting GPU cycles on identical input.
+    # The duplicate is identified across the whole system (not per-user) so
+    # examiners submitting the same evidence file share the same pipeline result.
+    existing = await crud.get_analysis_by_sha256(
+        db, sha256, exclude_status="failed"
+    )
+    if existing:
+        # Clean up the freshly uploaded copy — we don't need it
+        try:
+            import shutil
+            shutil.rmtree(str(upload_dir), ignore_errors=True)
+        except Exception:
+            pass
+
+        # Record that this user re-submitted the same evidence
+        client_ip = request.client.host if request.client else "unknown"
+        await crud.add_custody_log(
+            db, existing.id,
+            action="duplicate_submission",
+            actor=current_user.email,
+            ip_address=client_ip,
+            details=(
+                f"Duplicate upload detected: SHA-256 matches existing analysis "
+                f"{existing.uid}. Re-submitter: {current_user.email}"
+            ),
+            file_hash=sha256,
+        )
+        await db.commit()
+
+        # Fetch child records so we can return a full response
+        pipe_results = await crud.get_pipeline_results(db, existing.id)
+        heatmaps = await crud.get_heatmaps(db, existing.id)
+
+        logger.info(
+            f"Dedup hit: analysis {existing.uid} already has SHA-256={sha256[:16]}... "
+            f"Returning cached result to {current_user.email}"
+        )
+
+        return _build_analysis_response(existing, pipe_results, heatmaps, cached=True)
 
     # Persist to MinIO for durable storage without blocking event loop
     from app.storage import store_if_available, upload_analysis_file
@@ -267,29 +351,7 @@ async def get_results(
     pipe_results = await crud.get_pipeline_results(db, analysis.id)
     heatmaps = await crud.get_heatmaps(db, analysis.id)
 
-    return AnalysisResponse(
-        analysis_id=analysis.uid,
-        evidence_id=analysis.evidence_id,
-        status=AnalysisStatus(analysis.status),
-        filename=analysis.filename,
-        media_type=MediaType(analysis.media_type),
-        sha256=analysis.sha256,
-        overall_score=analysis.overall_score,
-        verdict=analysis.verdict,
-        pipeline_scores=[
-            PipelineScore(
-                pipeline=pr.pipeline, tier=pr.tier, score=pr.score,
-                confidence=pr.confidence, execution_ms=pr.execution_ms,
-                details=pr.details or {},
-            )
-            for pr in pipe_results
-        ],
-        heatmap_urls=[f"/api/v1/results/{analysis.uid}/heatmap?type={h.heatmap_type}" for h in heatmaps],
-        exif_data=analysis.exif_data,
-        report_url=f"/api/v1/results/{analysis.uid}/report" if analysis.report_path else None,
-        created_at=analysis.created_at,
-        completed_at=analysis.completed_at,
-    )
+    return _build_analysis_response(analysis, pipe_results, heatmaps)
 
 
 @router.get("/results/{analysis_id}/report")

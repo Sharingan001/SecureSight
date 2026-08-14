@@ -54,6 +54,32 @@ async def get_analysis_by_uid(db: AsyncSession, uid: str) -> Optional[Analysis]:
     return result.scalars().first()
 
 
+async def get_analysis_by_sha256(
+    db: AsyncSession,
+    sha256: str,
+    exclude_status: str | None = "failed",
+) -> Optional[Analysis]:
+    """Find the most recent analysis with a matching SHA-256 hash.
+
+    Used for duplicate detection: if the same file was already analyzed,
+    return the existing result instead of re-running the pipeline.
+
+    Args:
+        sha256: The file's SHA-256 hex digest.
+        exclude_status: Status value to exclude (default: 'failed').
+                        Failed analyses should be re-tried, not re-used.
+
+    Returns:
+        The most recent matching Analysis, or None.
+    """
+    q = select(Analysis).where(Analysis.sha256 == sha256)
+    if exclude_status:
+        q = q.where(Analysis.status != exclude_status)
+    q = q.order_by(Analysis.created_at.desc())
+    result = await db.execute(q)
+    return result.scalars().first()
+
+
 async def update_analysis(db: AsyncSession, analysis: Analysis, **kwargs) -> Analysis:
     """Update analysis fields. Uses flush only — get_db() manages the commit boundary."""
     for key, value in kwargs.items():

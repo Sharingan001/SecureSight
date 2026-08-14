@@ -107,6 +107,7 @@ class AnalysisResponse(BaseModel):
     report_url: str | None = None
     created_at: datetime
     completed_at: datetime | None = None
+    cached: bool = False  # True when result was returned from existing analysis (dedup)
 
 
 class AnalysisSummary(BaseModel):
