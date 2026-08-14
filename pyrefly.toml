@@ -1,0 +1,11 @@
+# Pyrefly configuration — points the type checker at the project venv
+# so it can resolve fastapi, sqlalchemy, celery, etc.
+[pyrefly]
+python_interpreter = ".venv/Scripts/python.exe"
+python_version = "3.12"
+
+# Add the backend directory as a source root so `app.*` imports resolve
+source_roots = ["backend"]
+
+# Ignore missing stubs for third-party packages we haven't stubs for
+ignore_missing_imports = true

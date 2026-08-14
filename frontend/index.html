@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/png" href="/favicon.png">`n    <meta name="description"
+        content="SecureSight — Forensic-grade deepfake detection with 13 AI pipelines, chain of custody, and court-ready reporting for cyber labs.">
+    <title>SecureSight — Forensic Deepfake Detection</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛡️</text></svg>">
+</head>
+
+<body>
+
+    <!-- ═══ AUTH OVERLAY ═══ -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-card">
+            <div class="auth-logo">
+                <div class="logo-mark"></div>
+                <div class="logo-text">Secure<span>Sight</span></div>
+            </div>
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-mode="login">Sign In</button>
+                <button class="auth-tab" data-mode="register">Register</button>
+            </div>
+            <h2 class="auth-title" id="authTitle">Welcome Back</h2>
+            <form id="authForm" data-mode="login">
+                <div class="auth-field" id="nameField" style="display:none">
+                    <label>Full Name</label>
+                    <input type="text" id="authName" placeholder="Your name" autocomplete="name">
+                </div>
+                <div class="auth-field">
+                    <label>Email</label>
+                    <input type="email" id="authEmail" placeholder="you@organization.com" required autocomplete="email">
+                </div>
+                <div class="auth-field">
+                    <label>Password</label>
+                    <input type="password" id="authPassword" placeholder="Min 8 characters" required minlength="8" autocomplete="current-password">
+                </div>
+                <div class="auth-error" id="authError"></div>
+                <button type="submit" class="btn btn-accent btn-block" id="authSubmit">Sign In</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3D Background -->
+    <div id="scene-container"></div>
+    <div class="scene-overlay"></div>
+    <div class="noise-layer"></div>
+
+    <!-- ═══ HEADER ═══ -->
+    <header class="header" id="appHeader">
+        <div class="logo">
+            <div class="logo-mark"></div>
+            <div class="logo-text">Secure<span>Sight</span></div>
+        </div>
+        <nav class="nav" id="mainNav">
+            <button class="nav-item active" data-view="upload">Upload</button>
+            <button class="nav-item" data-view="results">Results</button>
+            <button class="nav-item" data-view="forensic">Forensics</button>
+            <button class="nav-item" data-view="history">History</button>
+        </nav>
+        <div class="header-actions">
+            <div class="status-indicator">
+                <div class="status-dot-live"></div>
+                System Online
+            </div>
+            <span class="user-info" id="userInfo" style="display:none"></span>
+            <button class="btn-auth" id="loginBtn">→ Login</button>
+        </div>
+    </header>
+
+    <!-- ═══ MAIN ═══ -->
+    <main class="main">
+        <div class="container">
+
+            <!-- ═══ UPLOAD VIEW ═══ -->
+            <section id="v-upload" class="view active">
+                <div class="hero">
+                    <div class="hero-eyebrow">
+                        <div class="dot"></div>
+                        Forensic Analysis Platform
+                    </div>
+                    <h1>
+                        Detect deepfakes with<br>
+                        <span class="gradient">forensic precision</span>
+                    </h1>
+                    <p class="hero-sub">
+                        15-pipeline detection engine with chain of custody tracking,
+                        explainable AI heatmaps, and court-ready PDF reporting.
+                        Built for cyber forensics laboratories.
+                    </p>
+                </div>
+
+                <!-- Upload Box -->
+                <div class="upload-area">
+                    <div class="upload-box" id="uploadBox">
+                        <input type="file" id="fileInput" accept="image/*,video/*">
+                        <div class="upload-visual">
+                            <div class="upload-ring">
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M12 5v14M5 12l7-7 7 7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="upload-title">Drop media file or click to browse</div>
+                        <div class="upload-hint">Images and videos up to 500 MB</div>
+                        <div class="upload-formats">
+                            <span class="format-tag">JPEG</span>
+                            <span class="format-tag">PNG</span>
+                            <span class="format-tag">WebP</span>
+                            <span class="format-tag">MP4</span>
+                            <span class="format-tag">AVI</span>
+                            <span class="format-tag">MOV</span>
+                            <span class="format-tag">MKV</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Progress Card -->
+                <div class="progress-wrap" id="progressWrap">
+                    <div class="progress-card">
+                        <div class="progress-header">
+                            <span class="progress-label" id="progressLabel">Analyzing media...</span>
+                            <span class="progress-pct" id="progressPct">0%</span>
+                        </div>
+                        <div class="progress-track">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-steps">
+                            <div class="progress-step" data-step="preprocess">Preprocessing</div>
+                            <div class="progress-step" data-step="detect">AI Detection</div>
+                            <div class="progress-step" data-step="forensic">Forensics</div>
+                            <div class="progress-step" data-step="report">Report</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Feature Cards -->
+                <div class="features">
+                    <div class="feature-card">
+                        <div class="feature-icon teal">🧠</div>
+                        <div class="feature-value">15</div>
+                        <div class="feature-label">Detection Pipelines</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon purple">🔬</div>
+                        <div class="feature-value">4</div>
+                        <div class="feature-label">Analysis Tiers</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon blue">📋</div>
+                        <div class="feature-value">ISO</div>
+                        <div class="feature-label">27037 Compliant</div>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon amber">🔗</div>
+                        <div class="feature-value">SHA</div>
+                        <div class="feature-label">256/512 Integrity</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ RESULTS VIEW ═══ -->
+            <section id="v-results" class="view">
+                <div class="results-layout">
+                    <!-- Sidebar -->
+                    <div class="gap-row">
+                        <div class="card verdict-card">
+                            <div class="card-head">
+                                <div class="card-title">
+                                    <div class="icon">⚡</div> Analysis Verdict
+                                </div>
+                            </div>
+                            <div class="gauge-container">
+                                <svg viewBox="0 0 200 200">
+                                    <circle class="gauge-track" cx="100" cy="100" r="90" />
+                                    <circle class="gauge-value" id="gaugeArc" cx="100" cy="100" r="90" />
+                                </svg>
+                                <div class="gauge-center">
+                                    <div class="gauge-number" id="gaugeNum">—</div>
+                                    <div class="gauge-caption">Confidence</div>
+                                </div>
+                            </div>
+                            <div id="verdictPill" class="verdict-pill">—</div>
+                        </div>
+
+                        <div class="card">
+                            <div class="card-head">
+                                <div class="card-title">
+                                    <div class="icon">🔒</div> Evidence Integrity
+                                </div>
+                            </div>
+                            <div class="evidence-row"><span class="evidence-key">Evidence ID</span><span
+                                    class="evidence-val" id="eid">—</span></div>
+                            <div class="evidence-row"><span class="evidence-key">SHA-256</span><span
+                                    class="evidence-val text-accent" id="ehash">—</span></div>
+                            <div class="evidence-row"><span class="evidence-key">Filename</span><span
+                                    class="evidence-val" id="efname">—</span></div>
+                        </div>
+
+                        <div class="gap-row">
+                            <button class="btn btn-accent btn-block" id="btnReport">📄 Download PDF Report</button>
+                            <button class="btn btn-ghost btn-block" id="btnCustody">🔗 View Chain of Custody</button>
+                        </div>
+                    </div>
+
+                    <!-- Main Content -->
+                    <div>
+                        <div class="card">
+                            <div class="card-head">
+                                <div class="card-title">
+                                    <div class="icon">📊</div> Detection Pipeline Results
+                                </div>
+                            </div>
+                            <div class="pipeline-list" id="pipelineList"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ FORENSIC VIEW ═══ -->
+            <section id="v-forensic" class="view">
+                <div style="padding:2.5rem 0;" class="gap-row">
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="card-title">
+                                <div class="icon">🔬</div> Forensic Evidence Viewer
+                            </div>
+                        </div>
+                        <div class="forensic-header" id="fTabs">
+                            <button class="ftab active" data-tab="original">Original</button>
+                            <button class="ftab" data-tab="gradcam">GradCAM</button>
+                            <button class="ftab" data-tab="ela">ELA Map</button>
+                            <button class="ftab" data-tab="copy_move">Copy-Move</button>
+                        </div>
+                        <div class="viewer" id="viewer">
+                            <div class="viewer-placeholder">Upload a file to see forensic analysis</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="card-title">
+                                <div class="icon">📷</div> EXIF Metadata Analysis
+                            </div>
+                        </div>
+                        <div class="exif-list" id="exifList">
+                            <div style="grid-column:1/-1; text-align:center; color:var(--text-500); padding:1.5rem">No
+                                metadata available yet</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="card-title">
+                                <div class="icon">🔗</div> Chain of Custody
+                            </div>
+                        </div>
+                        <div class="timeline" id="custodyTl">
+                            <div style="color:var(--text-500); padding:1rem">No custody data available</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══ HISTORY VIEW ═══ -->
+            <section id="v-history" class="view">
+                <div style="padding:2.5rem 0;">
+                    <div class="card">
+                        <div class="card-head">
+                            <div class="card-title">
+                                <div class="icon">📜</div> Analysis History
+                            </div>
+                        </div>
+                        <div class="table-wrap">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Evidence ID</th>
+                                        <th>Filename</th>
+                                        <th>Type</th>
+                                        <th>Score</th>
+                                        <th>Verdict</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTbody">
+                                    <tr>
+                                        <td colspan="7" class="table-empty">No analyses recorded</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Three.js for 3D background -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="js/scene.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

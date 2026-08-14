@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Training datasets (too large for git)
+backend/training/dataset/
+backend/training/dataset_ai/
+backend/training/celebdf_crops/
+
+# Model weights (ONNX excluded — too large)
+backend/weights/*.onnx
+
+# HuggingFace cache
+.cache/
+
+# Database files
+*.db
+*.sqlite3
+
+# Uploads and outputs
+/tmp/securesight/
+backend/uploads/
+backend/outputs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+!.env.example
+
+# Logs
+*.log
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
