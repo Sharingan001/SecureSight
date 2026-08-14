@@ -129,8 +129,10 @@ class XceptionNet(nn.Module):
         self.block2 = XceptionBlock(128, 256, reps=2, stride=2)
         self.block3 = XceptionBlock(256, 728, reps=2, stride=2)
 
-        # Middle flow
-        self.middle = nn.Sequential(*[XceptionBlock(728, 728, reps=3) for _ in range(4)])
+        # Middle flow — 8 blocks (original Xception paper architecture).
+        # Previously 4 blocks (~14M params) which underfits on complex forgeries.
+        # 8 blocks brings this to ~22M params matching the reference implementation.
+        self.middle = nn.Sequential(*[XceptionBlock(728, 728, reps=3) for _ in range(8)])
 
         # Exit flow
         self.exit_block = XceptionBlock(728, 1024, reps=2, stride=2, grow_first=False)
@@ -139,7 +141,12 @@ class XceptionNet(nn.Module):
             SeparableConv2d(1536, 2048), nn.BatchNorm2d(2048), nn.ReLU(inplace=True),
         )
         self.pool = nn.AdaptiveAvgPool2d(1)
-        self.classifier = nn.Linear(2048, num_classes)
+        # Dropout(0.2) before classifier — matches EfficientNet regularization.
+        # Without this, XceptionNet overfits quickly on small deepfake datasets.
+        self.classifier = nn.Sequential(
+            nn.Dropout(0.2),
+            nn.Linear(2048, num_classes),
+        )
 
     @property
     def last_conv_layer(self):
