@@ -16,15 +16,59 @@ import numpy as np
 from PIL import Image
 
 
+def _sanitize_exif_value(key: str, val: str, max_val_len: int = 512) -> tuple[str, str]:
+    """Sanitize a raw EXIF key/value pair before storage.
+
+    EXIF data is attacker-controlled (embedded in the uploaded file).
+    Raw values must be sanitized before being stored in the DB JSON column
+    and returned via the API.
+
+    Sanitization rules:
+      - Strip null bytes and ASCII control chars (breaks JSON parsers)
+      - Strip HTML tags (defense-in-depth; frontend uses textContent anyway)
+      - Truncate key to 128 chars
+      - Truncate value to 512 chars
+      - Skip binary-looking values (high proportion of non-printable chars)
+    """
+    import re
+
+    # Strip null bytes and control characters (keep tab/newline for readability)
+    _ctrl = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+    key = _ctrl.sub("", str(key))[:128]
+    val = _ctrl.sub("", str(val))
+
+    # Strip HTML tags (prevent stored XSS in any future template that uses innerHTML)
+    val = re.sub(r"<[^>]{0,200}>", "", val)
+
+    # Skip values that look binary (>30% non-printable chars)
+    printable_ratio = sum(1 for c in val if c.isprintable()) / max(len(val), 1)
+    if printable_ratio < 0.7:
+        val = "[binary data]"
+
+    # Truncate
+    val = val[:max_val_len]
+
+    return key, val
+
+
 def _extract_exif(file_path: str) -> dict[str, Any]:
-    """Extract all EXIF metadata from image file."""
+    """Extract all EXIF metadata from image file.
+
+    All values are sanitized before return — EXIF is attacker-controlled
+    (embedded in the uploaded file) and must not be stored/returned raw.
+    """
+    _MAX_FIELDS = 100  # Cap total fields to prevent memory exhaustion
     data: dict[str, Any] = {}
     try:
         import exifread
         with open(file_path, "rb") as f:
             tags = exifread.process_file(f, details=True)
         for key, val in tags.items():
-            data[key] = str(val)
+            if len(data) >= _MAX_FIELDS:
+                break
+            k, v = _sanitize_exif_value(key, str(val))
+            if k:
+                data[k] = v
     except Exception:
         pass
 
@@ -34,13 +78,17 @@ def _extract_exif(file_path: str) -> dict[str, Any]:
         exif_raw = pil_img.getexif()
         if exif_raw:
             for tag_id, value in exif_raw.items():
+                if len(data) >= _MAX_FIELDS:
+                    break
                 tag_name = f"PIL_{tag_id}"
                 try:
                     from PIL.ExifTags import TAGS
                     tag_name = TAGS.get(tag_id, f"Unknown_{tag_id}")
                 except Exception:
                     pass
-                data[f"pil_{tag_name}"] = str(value)
+                k, v = _sanitize_exif_value(f"pil_{tag_name}", str(value))
+                if k:
+                    data[k] = v
     except Exception:
         pass
 
