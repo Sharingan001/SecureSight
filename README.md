@@ -1,7 +1,7 @@
 ﻿<div align="center">
 
 <!-- Animated header banner -->
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:0a0f1e,50:0d2137,100:00d4ff&height=200&section=header&text=SecureSight&fontSize=72&fontColor=00d4ff&fontAlignY=38&desc=Forensic-Grade%20Deepfake%20%26%20AI%20Detection%20Platform&descSize=18&descAlignY=58&descColor=7dd3fc&animation=fadeIn" width="100%"/>
+<img src="./frontend/assets/banner.svg" width="100%" alt="SecureSight Banner"/>
 
 <p>
   <img src="https://img.shields.io/badge/Status-Production%20Ready-00d4ff?style=for-the-badge&logo=checkmarx&logoColor=white"/>
@@ -342,7 +342,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=0:00d4ff,100:0a0f1e&height=120&section=footer" width="100%"/>
+<img src="./frontend/assets/footer.svg" width="100%" alt="SecureSight Footer"/>
 
 <p>Built for <strong>forensic integrity</strong> · Designed for <strong>cyber labs</strong> · Deployed with <strong>CUDA precision</strong></p>
 
@@ -350,3 +350,4 @@ MIT License — see [LICENSE](LICENSE) for details.
 <img src="https://img.shields.io/badge/Powered%20by-NVIDIA%20GPU-76b900?style=for-the-badge&logo=nvidia"/>
 
 </div>
+

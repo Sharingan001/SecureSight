@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 200" width="1200" height="200">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#0a0f1e"/><stop offset="50%" stop-color="#0d2137"/><stop offset="100%" stop-color="#062030"/></linearGradient>
+    <linearGradient id="tg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#00d4ff"/><stop offset="100%" stop-color="#7dd3fc"/></linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <style>.t{animation:fi 1.2s ease-in forwards;opacity:0}.s{animation:fi 1.2s 0.5s forwards;opacity:0}@keyframes fi{to{opacity:1}}</style>
+  </defs>
+  <rect width="1200" height="200" fill="url(#bg)"/>
+  <path d="M0,150 C200,110 400,185 600,150 C800,115 1000,185 1200,150 L1200,200 L0,200 Z" fill="#00d4ff" opacity="0.08"/>
+  <path d="M0,170 C300,140 600,190 900,160 C1100,140 1160,170 1200,165 L1200,200 L0,200 Z" fill="#00d4ff" opacity="0.05"/>
+  <g transform="translate(68,38)" filter="url(#glow)">
+    <polygon points="58,2 116,28 116,82 58,112 0,82 0,28" fill="none" stroke="#00d4ff" stroke-width="3.5" opacity="0.9"/>
+    <rect x="38" y="58" width="40" height="28" rx="5" fill="#00d4ff" opacity="0.85"/>
+    <path d="M46,58 A12,14 0 0,1 70,58" fill="none" stroke="#00d4ff" stroke-width="4" opacity="0.9"/>
+    <circle cx="58" cy="72" r="4" fill="#0a0f1e"/>
+  </g>
+  <text class="t" x="215" y="88" font-family="Arial Black,sans-serif" font-size="58" font-weight="900" fill="url(#tg)" filter="url(#glow)">SecureSight</text>
+  <text class="s" x="217" y="124" font-family="Arial,sans-serif" font-size="17" fill="#7dd3fc" letter-spacing="1">Forensic-Grade Deepfake &amp; AI Detection Platform</text>
+  <text class="s" x="217" y="155" font-family="monospace" font-size="12" fill="#00d4ff" opacity="0.65">11 AI Pipelines  |  EfficientNet-B4 AUC 99.53%  |  ISO 27037  |  CUDA 12.2  |  Court-Ready PDF Reports</text>
+</svg>
