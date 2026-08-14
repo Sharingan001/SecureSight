@@ -37,7 +37,69 @@ router = APIRouter(prefix="/api/v1", tags=["analysis"])
 _start_time = time.time()
 
 
+# ── Magic-byte signatures ──────────────────────────────────────────────
+# Maps (offset, magic_bytes) → media_type it proves.
+# offset is where in the file to look (most are 0, RIFF-based files differ).
+_IMAGE_MAGIC: list[tuple[int, bytes]] = [
+    (0, b"\xff\xd8\xff"),           # JPEG
+    (0, b"\x89PNG\r\n\x1a\n"),      # PNG
+    (0, b"RIFF"),                   # WebP container (checked with WEBP below)
+    (0, b"BM"),                     # BMP
+    (0, b"II*\x00"),                # TIFF little-endian
+    (0, b"MM\x00*"),                # TIFF big-endian
+]
+_VIDEO_MAGIC: list[tuple[int, bytes]] = [
+    (4,  b"ftyp"),                  # MP4 / MOV / M4V (ISO base media)
+    (0,  b"RIFF"),                  # AVI container
+    (0,  b"\x1aE\xdf\xa3"),         # MKV / WebM (EBML header)
+    (0,  b"FLV\x01"),               # FLV (just in case)
+]
+
+def _validate_magic_bytes(file_path: str, media_type: str) -> str | None:
+    """Read first 16 bytes of file and verify against known magic signatures.
+
+    Returns an error message string on failure, None on success.
+    This runs in a thread (blocking I/O is fine here since it's off the event loop).
+    """
+    try:
+        with open(file_path, "rb") as fh:
+            header = fh.read(16)
+    except OSError as e:
+        return f"Cannot read uploaded file: {e}"
+
+    if len(header) < 4:
+        return "File is too small to be a valid image or video"
+
+    if media_type == "image":
+        # Special case: RIFF container could be WebP — check bytes 8-12
+        if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+            return None  # Valid WebP
+        for offset, magic in _IMAGE_MAGIC:
+            if offset == 0 and header[:len(magic)] == magic and magic != b"RIFF":
+                return None  # Known image magic
+        return (
+            "File content does not match an allowed image format. "
+            "Supported: JPEG, PNG, WebP, BMP, TIFF"
+        )
+
+    if media_type == "video":
+        # RIFF with AVI list
+        if header[:4] == b"RIFF":
+            return None  # AVI
+        for offset, magic in _VIDEO_MAGIC:
+            chunk = header[offset:offset + len(magic)]
+            if chunk == magic:
+                return None
+        return (
+            "File content does not match an allowed video format. "
+            "Supported: MP4, AVI, MOV, WebM, MKV"
+        )
+
+    return "Unknown media type"
+
+
 # ── Health (PUBLIC — no auth required) ─────────────────────────────────
+
 
 @router.get("/health", response_model=HealthResponse)
 async def health():
@@ -72,7 +134,7 @@ async def analyze(
     current_user: User = Depends(require_min_role("examiner")),
 ):
     """Upload media file and run full analysis pipeline."""
-    # Validate MIME type
+    # Validate MIME type from HTTP header (first gate)
     content_type = file.content_type or ""
     is_image = content_type in settings.ALLOWED_IMAGE_TYPES
     is_video = content_type in settings.ALLOWED_VIDEO_TYPES
@@ -118,7 +180,17 @@ async def analyze(
             pass
         raise HTTPException(413, f"File exceeds {settings.MAX_UPLOAD_MB}MB limit")
 
-    # Compute hashes for evidence integrity without blocking event loop
+    # Magic byte validation (second gate — the real check)
+    # HTTP Content-Type is set by the client and trivially spoofable.
+    # The file's actual bytes cannot be faked.
+    _magic_error = await asyncio.to_thread(_validate_magic_bytes, file_path, media_type)
+    if _magic_error:
+        try:
+            os.unlink(file_path)
+        except OSError:
+            pass
+        raise HTTPException(400, _magic_error)
+
     sha256 = await asyncio.to_thread(compute_file_hash, file_path, "sha256")
     sha512 = await asyncio.to_thread(compute_file_hash, file_path, "sha512")
 
