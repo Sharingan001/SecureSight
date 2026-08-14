@@ -40,6 +40,59 @@ def init_worker_db_pool(**kwargs):
     logger.info("Celery worker process initialized: DB engine disposed for clean prefork.")
 
 
+# ── Exception classification for intelligent retry ─────────────────────
+
+# Errors caused by the file/user — retrying wastes GPU cycles (will always fail)
+_NON_RETRYABLE: tuple = (
+    ValueError,
+    AssertionError,
+    AttributeError,      # e.g. NoneType has no attribute X on bad input
+    NotImplementedError,
+)
+
+# File format errors — retrying makes no sense
+_NON_RETRYABLE_NAMES: frozenset = frozenset({
+    "UnidentifiedImageError",  # PIL: file is not an image
+    "DecompressionBombError",  # PIL: oversized image
+    "IsADirectoryError",
+    "FileNotFoundError",
+})
+
+
+def _classify_exception_for_retry(exc: Exception, retry_count: int) -> tuple[bool, int]:
+    """Classify an exception as retryable or not, with appropriate delay.
+
+    Returns:
+        (should_retry: bool, delay_seconds: int)
+
+    Rules:
+        - File/user errors (ValueError, PIL errors): NEVER retry — broken input
+        - CUDA OOM: retry after 60s (transient GPU resource issue)
+        - DB/network errors: retry with exponential backoff (30 * 2^retry)
+        - Unknown: retry with base delay (give benefit of the doubt once)
+    """
+    exc_type_name = type(exc).__name__
+
+    # Permanent failures — don't waste resources
+    if isinstance(exc, _NON_RETRYABLE):
+        return False, 0
+    if exc_type_name in _NON_RETRYABLE_NAMES:
+        return False, 0
+
+    # CUDA Out of Memory — GPU is under pressure, back off then retry
+    if "OutOfMemoryError" in exc_type_name or "CUDA out of memory" in str(exc):
+        return True, 60  # Fixed 60s for GPU to recover
+
+    # DB / network connection errors — exponential backoff
+    exc_str = str(exc).lower()
+    if any(k in exc_str for k in ("connection", "timeout", "operational", "network", "broker")):
+        delay = min(30 * (2 ** retry_count), 300)  # Max 5 min
+        return True, delay
+
+    # Unknown error — retry once with base delay, then give up
+    return True, 30
+
+
 @celery_app.task(bind=True, max_retries=2, default_retry_delay=30)
 def run_analysis_task(self, analysis_id: int, file_path: str, media_type: str):
     """Execute the full forensic analysis pipeline asynchronously.
@@ -217,11 +270,27 @@ def run_analysis_task(self, analysis_id: int, file_path: str, media_type: str):
                     f"analysis #{analysis_id}: {inner_exc}"
                 )
 
-            # Retry on transient errors
-            if self.request.retries < self.max_retries:
-                raise self.retry(exc=exc)
+            # ── Intelligent retry classification ──────────────────────
+            # NOT all failures are retryable. Retrying a broken file wastes
+            # GPU cycles and queue slots — it will fail every time.
+            should_retry, retry_delay = _classify_exception_for_retry(exc, self.request.retries)
+
+            if should_retry and self.request.retries < self.max_retries:
+                logger.warning(
+                    f"[Task {self.request.id}] Retrying analysis #{analysis_id} "
+                    f"(attempt {self.request.retries + 1}/{self.max_retries}) "
+                    f"in {retry_delay}s: {type(exc).__name__}"
+                )
+                raise self.retry(exc=exc, countdown=retry_delay)
+
+            if not should_retry:
+                logger.error(
+                    f"[Task {self.request.id}] Analysis #{analysis_id} NOT retrying: "
+                    f"{type(exc).__name__} is a non-transient error (file/user problem)"
+                )
 
             return {"status": "failed", "detail": str(exc)[:500]}
+
 
 @celery_app.task(bind=True, max_retries=3, default_retry_delay=10)
 def delete_analysis_files_task(self, analysis_uid: str, evidence_id: str):
