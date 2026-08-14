@@ -119,6 +119,16 @@ def run_analysis_task(self, analysis_id: int, file_path: str, media_type: str):
         sha256 = analysis.sha256
 
         try:
+            # Store task_id in Redis so /progress endpoint can find it
+            # Use analysis uid as the lookup key (no DB migration needed)
+            try:
+                from app.token_blocklist import _get_redis
+                _rc = _get_redis()
+                if _rc and self.request.id:
+                    _rc.setex(f"task_id:{analysis.uid}", 86400, self.request.id)  # 24h TTL
+            except Exception:
+                pass  # Redis unavailable — progress won't work but analysis still runs
+
             # Mark as processing
             analysis.status = "processing"
             db.commit()
@@ -128,6 +138,12 @@ def run_analysis_task(self, analysis_id: int, file_path: str, media_type: str):
             from app.pipeline.ensemble import run_all_pipelines
             from app.pipeline.explainability import generate_all_visuals
 
+            # Stage 1/5: Preprocessing
+            self.update_state(state="PROGRESS", meta={
+                "stage": "preprocessing",
+                "pct": 10,
+                "detail": "Extracting frames and detecting faces",
+            })
             preprocess_result = preprocess(file_path, media_type)
 
             # Custody log — analysis start
@@ -140,8 +156,22 @@ def run_analysis_task(self, analysis_id: int, file_path: str, media_type: str):
             ))
             db.commit()
 
+            # Stage 2/5: Running pipelines
+            self.update_state(state="PROGRESS", meta={
+                "stage": "pipelines",
+                "pct": 30,
+                "detail": f"Running ensemble ({len(preprocess_result.face_crops)} face(s) detected)",
+            })
+
             # Run all pipelines
             ensemble_result = run_all_pipelines(preprocess_result, file_path)
+
+            # Stage 3/5: Generating visuals
+            self.update_state(state="PROGRESS", meta={
+                "stage": "visuals",
+                "pct": 70,
+                "detail": "Generating heatmaps and explainability maps",
+            })
 
             # Generate visuals
             primary_face = preprocess_result.face_crops[0].image if preprocess_result.face_crops else None
@@ -178,6 +208,13 @@ def run_analysis_task(self, analysis_id: int, file_path: str, media_type: str):
             report_dir = settings.OUTPUT_DIR / analysis.uid
             report_dir.mkdir(parents=True, exist_ok=True)
             report_path = str(report_dir / "report.pdf")
+
+            # Stage 4/5: Generating report
+            self.update_state(state="PROGRESS", meta={
+                "stage": "report",
+                "pct": 85,
+                "detail": "Generating forensic PDF report",
+            })
 
             custody_logs = db.execute(
                 select(CustodyLog).where(CustodyLog.analysis_id == analysis.id)

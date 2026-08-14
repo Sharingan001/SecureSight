@@ -373,6 +373,118 @@ async def download_report(
                         filename=f"SecureSight_Report_{analysis_id}.pdf")
 
 
+# ── Task progress (AUTHENTICATED — viewer+) ────────────────────────────
+
+@router.get("/results/{analysis_id}/progress")
+async def get_analysis_progress(
+    analysis_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_min_role("viewer")),
+):
+    """Real-time pipeline progress for an in-flight analysis.
+
+    Reads the Celery task state from Redis result backend.
+    The task_id is stored in Redis (key: task_id:{analysis_uid}) by the
+    worker at task start — no DB migration required.
+
+    Returns a progress object:
+      { stage, pct, detail, status, analysis_id }
+
+    Possible statuses: pending, preprocessing, pipelines, visuals,
+                       report, completed, failed, unknown
+    """
+    analysis = await crud.get_analysis_by_uid(db, analysis_id)
+    if not analysis:
+        raise HTTPException(404, "Analysis not found")
+    if analysis.user_id != current_user.id and current_user.role not in ("admin", "reviewer"):
+        raise HTTPException(403, "Access denied")
+
+    # Short-circuit: if already done, return instantly without hitting Celery
+    if analysis.status == "completed":
+        return {
+            "analysis_id": analysis_id,
+            "status": "completed",
+            "stage": "complete",
+            "pct": 100,
+            "detail": "Analysis complete",
+        }
+    if analysis.status == "failed":
+        return {
+            "analysis_id": analysis_id,
+            "status": "failed",
+            "stage": "failed",
+            "pct": 0,
+            "detail": "Analysis failed — see custody log for error details",
+        }
+
+    # Look up Celery task_id from Redis
+    try:
+        from app.token_blocklist import _get_redis
+        _rc = _get_redis()
+        task_id = _rc.get(f"task_id:{analysis_id}") if _rc else None
+    except Exception:
+        task_id = None
+
+    if not task_id:
+        # Worker hasn't started yet or Redis is unavailable
+        return {
+            "analysis_id": analysis_id,
+            "status": "pending",
+            "stage": "queued",
+            "pct": 5,
+            "detail": "Waiting for worker to pick up task",
+        }
+
+    # Query Celery result backend for task state
+    try:
+        from app.tasks.celery_app import celery_app as _celery
+        result = _celery.AsyncResult(task_id)
+        state = result.state
+        meta = result.info or {}
+
+        if state == "PROGRESS":
+            return {
+                "analysis_id": analysis_id,
+                "status": "processing",
+                "stage": meta.get("stage", "running"),
+                "pct": meta.get("pct", 30),
+                "detail": meta.get("detail", "Running..."),
+            }
+        if state == "SUCCESS":
+            return {
+                "analysis_id": analysis_id,
+                "status": "completed",
+                "stage": "complete",
+                "pct": 100,
+                "detail": "Analysis complete",
+            }
+        if state == "FAILURE":
+            return {
+                "analysis_id": analysis_id,
+                "status": "failed",
+                "stage": "failed",
+                "pct": 0,
+                "detail": str(meta)[:200] if meta else "Task failed",
+            }
+        # PENDING / STARTED / RETRY
+        return {
+            "analysis_id": analysis_id,
+            "status": state.lower(),
+            "stage": "starting",
+            "pct": 5,
+            "detail": "Task queued or starting",
+        }
+    except Exception as e:
+        logger.warning(f"Progress check failed for {analysis_id}: {e}")
+        return {
+            "analysis_id": analysis_id,
+            "status": analysis.status,
+            "stage": "unknown",
+            "pct": 50,
+            "detail": "Progress unavailable — analysis still running",
+        }
+
+
 @router.get("/results/{analysis_id}/heatmap")
 async def get_heatmap(
     analysis_id: str,

@@ -236,18 +236,54 @@ async function processFile(file) {
         const submitted = await res.json();
         const analysisId = submitted.analysis_id;
 
-        // Poll until completed or failed (Celery processes async)
-        setProgress(20, 'Running AI pipelines...');
+        // Poll /progress for real backend stage info (lightweight, no full payload)
         let result = submitted;
-        const maxWait = 300; // 5 minutes max
-        let waited = 0;
-        while (result.status === 'processing' || result.status === 'pending') {
-            if (waited >= maxWait) throw new Error('Analysis timed out after 5 minutes');
-            await new Promise(r => setTimeout(r, 2000));
-            waited += 2;
-            const pollRes = await authFetch(`${API}/results/${analysisId}`);
-            if (!pollRes.ok) throw new Error('Failed to fetch analysis status');
-            result = await pollRes.json();
+        if (result.cached) {
+            // Dedup hit — already complete, skip polling
+            setProgress(100, 'Cached result returned instantly');
+        } else {
+            const maxWait = 300;
+            let waited = 0;
+            while (result.status === 'processing' || result.status === 'pending') {
+                if (waited >= maxWait) throw new Error('Analysis timed out after 5 minutes');
+                await new Promise(r => setTimeout(r, 2000));
+                waited += 2;
+
+                // Lightweight progress check
+                try {
+                    const progRes = await authFetch(`${API}/results/${analysisId}/progress`);
+                    if (progRes.ok) {
+                        const prog = await progRes.json();
+                        const stageLabels = {
+                            queued:        'Waiting in queue...',
+                            preprocessing: 'Extracting frames & detecting faces...',
+                            pipelines:     'Running AI ensemble pipelines...',
+                            visuals:       'Generating heatmaps & GradCAM...',
+                            report:        'Building forensic PDF report...',
+                            complete:      'Finalising results...',
+                        };
+                        const label = stageLabels[prog.stage] || prog.detail || 'Analysing...';
+                        setProgress(prog.pct ?? 30, label);
+                        if (prog.stage) activateStep(
+                            { preprocessing:'preprocess', pipelines:'detect',
+                              visuals:'forensic', report:'report' }[prog.stage] || prog.stage
+                        );
+                        if (prog.status === 'completed' || prog.status === 'failed') {
+                            result = { status: prog.status };
+                            break;
+                        }
+                    }
+                } catch (_) { /* swallow — fall through to next poll */ }
+            }
+        }
+
+        // Fetch full result once done
+        if (!result.cached) {
+            const finalRes = await authFetch(`${API}/results/${analysisId}`);
+            if (!finalRes.ok) throw new Error('Failed to fetch analysis result');
+            result = await finalRes.json();
+        } else {
+            result = submitted;  // already has full payload from dedup path
         }
 
         if (result.status === 'failed') {
@@ -343,6 +379,12 @@ function renderResults(data) {
     document.getElementById('eid').textContent = data.evidence_id || '—';
     document.getElementById('ehash').textContent = data.sha256 || '—';
     document.getElementById('efname').textContent = data.filename || '—';
+
+    // Cached badge — shown when dedup hit (same file already analysed)
+    const cachedBadge = document.getElementById('cachedBadge');
+    if (cachedBadge) {
+        cachedBadge.style.display = data.cached ? 'inline-flex' : 'none';
+    }
 
     // Pipeline list
     const list = document.getElementById('pipelineList');
